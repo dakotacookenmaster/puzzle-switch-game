@@ -1,0 +1,20 @@
+.radial-dial {
+  border-radius: 100%;
+  background: gray;
+}
+
+.radial-dial-container:hover {
+  cursor: grab;
+}
+
+.notch {
+  height: 50px;
+  width: 20px;
+  border-left: 2px solid black;
+  position: absolute;
+  left: 50%;
+}
+
+div { 
+  color: white;
+}
