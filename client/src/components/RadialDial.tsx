@@ -1,5 +1,14 @@
-import { useRef, useState } from "react"
+import {
+    MouseEventHandler,
+    TouchEventHandler,
+    useCallback,
+    useRef,
+    useState,
+} from "react"
 import { RadialDialProps } from "../prop-types"
+import _ from "lodash"
+import sendMessage from "../helpers/sendMessage"
+import { THROTTLE_TIME } from "../constants"
 
 const RadialDial = (props: RadialDialProps) => {
     const { count, diameter, rotation, setRotation, ws } = props
@@ -13,6 +22,25 @@ const RadialDial = (props: RadialDialProps) => {
         } else {
             return degrees % 360
         }
+    }
+
+    const mouseDownTouchDown = (event: MouseEvent | TouchEvent) => {
+        setIsDragging(true)
+        setOffsetAngle(
+            convertToUnitMeasurement(
+                rotation.value -
+                    getAngleFromCenter({
+                        x:
+                            event.type === "touchstart"
+                                ? (event as TouchEvent).touches[0].clientX
+                                : (event as MouseEvent).pageX,
+                        y:
+                            event.type === "touchstart"
+                                ? (event as TouchEvent).touches[0].clientY
+                                : (event as MouseEvent).pageY,
+                    })
+            )
+        )
     }
 
     const getAngleFromCenter = (position: { x: number; y: number }) => {
@@ -34,22 +62,30 @@ const RadialDial = (props: RadialDialProps) => {
         return 0
     }
 
-    const computeRotation = (mousePosition: { x: number; y: number }) => {
-        let angle =
-            getAngleFromCenter({ x: mousePosition.x, y: mousePosition.y }) +
-            offsetAngle
-        setRotation(convertToUnitMeasurement(angle))
+    const sendMessageDebounced = useCallback(
+        _.throttle(sendMessage, THROTTLE_TIME, { leading: true }),
+        []
+    )
 
-        ws.send(
-            JSON.stringify({
-                event: "control_change",
-                data: {
-                    id: "a_radial_dial",
-                    type: "radial_dial",
-                    value: angle
-                },
-            })
+    const computeRotation = (mousePosition: { x: number; y: number }) => {
+        let angle = convertToUnitMeasurement(
+            getAngleFromCenter({ x: mousePosition.x, y: mousePosition.y }) +
+                offsetAngle
         )
+
+        setRotation((prevRotation) => ({
+            value: angle,
+            rotations: prevRotation.rotations,
+        }))
+        sendMessageDebounced(ws, {
+            event: "control_change",
+            data: { id: "a_radial_dial", type: "radial_dial", value: angle },
+        })
+    }
+
+    let dialSetting = Math.round((360 - rotation.value) / (360 / count))
+    if (dialSetting === count) {
+        dialSetting = 0
     }
 
     return (
@@ -61,6 +97,7 @@ const RadialDial = (props: RadialDialProps) => {
                 paddingTop: "20px",
                 borderRadius: "10px",
                 display: "flex",
+                position: "relative",
                 gap: "10px",
                 flexDirection: "column",
                 alignItems: "center",
@@ -83,29 +120,37 @@ const RadialDial = (props: RadialDialProps) => {
                     width: diameter,
                     position: "relative",
                     cursor: isDragging ? "grabbing" : undefined,
-                    transform: `rotate(${rotation.toFixed(5)}deg)`,
+                    transform: `rotate(${
+                        rotation.value + 360 * rotation.rotations
+                    }deg)`,
+                    transition: isDragging ? "none" : `linear ${THROTTLE_TIME}ms`,
                 }}
-                onMouseDown={(event) => {
-                    setIsDragging(true)
-                    setOffsetAngle(
-                        convertToUnitMeasurement(
-                            rotation -
-                                getAngleFromCenter({
-                                    x: event.pageX,
-                                    y: event.pageY,
-                                })
-                        )
-                    )
-                }}
+                onMouseDown={
+                    mouseDownTouchDown as unknown as MouseEventHandler<any>
+                }
+                onTouchStart={
+                    mouseDownTouchDown as unknown as TouchEventHandler<any>
+                }
                 onMouseUp={() => {
                     setIsDragging(false)
                 }}
                 onMouseLeave={() => {
                     setIsDragging(false)
                 }}
+                onTouchEnd={() => {
+                    setIsDragging(false)
+                }}
                 onMouseMove={(event) => {
                     if (isDragging) {
                         computeRotation({ x: event.pageX, y: event.pageY })
+                    }
+                }}
+                onTouchMove={(event) => {
+                    if (isDragging) {
+                        computeRotation({
+                            x: event.touches[0].clientX,
+                            y: event.touches[0].clientY,
+                        })
                     }
                 }}
             >
@@ -150,16 +195,7 @@ const RadialDial = (props: RadialDialProps) => {
                         alignItems: "center",
                         zIndex: 0,
                     }}
-                >
-                    <h1
-                        style={{
-                            transform: `rotate(-${rotation.toFixed(5)}deg)`,
-                            userSelect: "none",
-                        }}
-                    >
-                        {rotation.toFixed(2)}&deg;
-                    </h1>
-                </div>
+                ></div>
                 <div
                     className="numbers"
                     style={{
@@ -190,9 +226,15 @@ const RadialDial = (props: RadialDialProps) => {
                             >
                                 <div
                                     style={{
-                                        marginTop: "35px",
-                                        marginLeft: "-3px",
+                                        marginTop: `${diameter / 11}px`,
+                                        marginLeft: i === 0 ? "-11px" : "-13px",
                                         userSelect: "none",
+                                        display: "flex",
+                                        justifyContent: "center",
+                                        padding: "0px 8px",
+                                        fontSize: `${
+                                            (diameter / count)
+                                        }px`,
                                     }}
                                 >
                                     {i}
@@ -202,6 +244,24 @@ const RadialDial = (props: RadialDialProps) => {
                     })}
                 </div>
             </div>
+            <h1
+                style={{
+                    padding: "0",
+                    margin: "0",
+                    userSelect: "none",
+                    fontSize: `${diameter / 2.4}px`,
+                    position: "absolute",
+                    height: "100%",
+                    top: "0px",
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    pointerEvents: "none",
+                }}
+            >
+                {dialSetting}
+            </h1>
         </div>
     )
 }
