@@ -1,14 +1,12 @@
-import {
-    MouseEventHandler,
-    TouchEventHandler,
-    useCallback,
-    useRef,
-    useState,
-} from "react"
+import { MouseEventHandler, TouchEventHandler, useRef, useState } from "react"
 import { RadialDialProps } from "../prop-types"
 import _ from "lodash"
 import sendMessage from "../helpers/sendMessage"
 import { THROTTLE_TIME } from "../constants"
+
+const sendMessageDebounced = _.throttle(sendMessage, THROTTLE_TIME, {
+    leading: true,
+})
 
 const RadialDial = (props: RadialDialProps) => {
     const { count, diameter, rotation, setRotation, ws } = props
@@ -61,11 +59,6 @@ const RadialDial = (props: RadialDialProps) => {
 
         return 0
     }
-
-    const sendMessageDebounced = useCallback(
-        _.throttle(sendMessage, THROTTLE_TIME, { leading: true }),
-        []
-    )
 
     const computeRotation = (mousePosition: { x: number; y: number }) => {
         let angle = convertToUnitMeasurement(
@@ -123,7 +116,9 @@ const RadialDial = (props: RadialDialProps) => {
                     transform: `rotate(${
                         rotation.value + 360 * rotation.rotations
                     }deg)`,
-                    transition: isDragging ? "none" : `linear ${THROTTLE_TIME}ms`,
+                    transition: isDragging
+                        ? "none"
+                        : `linear ${THROTTLE_TIME - 50}ms`,
                 }}
                 onMouseDown={
                     mouseDownTouchDown as unknown as MouseEventHandler<any>
@@ -232,9 +227,7 @@ const RadialDial = (props: RadialDialProps) => {
                                         display: "flex",
                                         justifyContent: "center",
                                         padding: "0px 8px",
-                                        fontSize: `${
-                                            (diameter / count)
-                                        }px`,
+                                        fontSize: `${diameter / count}px`,
                                     }}
                                 >
                                     {i}

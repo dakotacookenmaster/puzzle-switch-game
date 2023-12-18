@@ -2,7 +2,9 @@ import { useState } from "react"
 import "./App.css"
 import RadialDial from "./components/RadialDial"
 import getMessage from "./helpers/getMessage"
-const ws = new WebSocket("ws://192.168.41.240:3000")
+
+const wsHost = import.meta.env.VITE_WS_HOST
+const ws = new WebSocket(wsHost)
 
 const App = () => {
     const [rotation, setRotation] = useState({
@@ -63,7 +65,7 @@ const App = () => {
             rotation={rotation}
             ws={ws}
             setRotation={setRotation}
-            diameter={200}
+            diameter={300}
             count={10}
         />
     )

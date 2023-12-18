@@ -1,1 +1,1 @@
-export const THROTTLE_TIME = 150
+export const THROTTLE_TIME = 200
